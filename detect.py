@@ -24,9 +24,12 @@ def detect(save_img=False):
 
     # Initialize
     device = select_device(opt.device)
-    if os.path.exists(out):
-        shutil.rmtree(out)  # delete output folder
-    os.makedirs(out)  # make new output folder
+
+    # 디렉토리가 있을 경우, 삭제하지 않는다.
+    if os.path.exists(out) is False:
+        os.makedirs(out)  # make new output folder
+        # shutil.rmtree(out)  # delete output folder
+
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
     # Load model
@@ -54,7 +57,12 @@ def detect(save_img=False):
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
-    colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
+
+    # red color로 통일
+    colors = [[0, 0, 255] for _ in range(len(names))]
+
+    # 원본 - 랜덤.
+    # colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
 
     # Run inference
     t0 = time.time()
@@ -75,7 +83,7 @@ def detect(save_img=False):
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t2 = time_synchronized()
 
-        # Apply Classifier
+        # Apply Classifier -> 지금까지의 데이터로 train / classifier 적용하면 될 듯?
         if classify:
             pred = apply_classifier(pred, modelc, img, im0s)
 
@@ -102,11 +110,13 @@ def detect(save_img=False):
                 # Write results
                 for *xyxy, conf, cls in det:
                     if save_txt:  # Write to file
+                        ## bounding box 비율을 변경하고 싶으면 xyxy2xywh 함수에 정의된 계산로직을 바꾸면 된다.
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                         with open(txt_path + '.txt', 'a') as f:
                             f.write(('%g ' * 5 + '\n') % (cls, *xywh))  # label format
 
                     if save_img or view_img:  # Add bbox to image
+                        # bounding box에 label / confidence score 붙이는 로직. default: classify 결과를 넣어준다.
                         label = '%s %.2f' % (names[int(cls)], conf)
                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 

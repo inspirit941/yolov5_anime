@@ -13,7 +13,7 @@ from numpy import random
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import (
-    check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, plot_one_box, strip_optimizer)
+    check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, xywh2xyxy, plot_one_box, strip_optimizer)
 from utils.torch_utils import select_device, load_classifier, time_synchronized
 
 
@@ -109,16 +109,25 @@ def detect(save_img=False):
 
                 # Write results
                 for *xyxy, conf, cls in det:
+                    xywh = xyxy2xywh(torch.tensor(xyxy).view(1, 4)).view(-1)
+                    if torch.le(xywh[2], torch.tensor(70)) and torch.le(xywh[3], torch.tensor(70)):
+                        print("not draw")
+                        continue
                     if save_txt:  # Write to file
                         ## bounding box 비율을 변경하고 싶으면 xyxy2xywh 함수에 정의된 계산로직을 바꾸면 된다.
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                        with open(txt_path + '.txt', 'a') as f:
+                        with open(txt_path + '.txt', 'w') as f:
                             f.write(('%g ' * 5 + '\n') % (cls, *xywh))  # label format
 
                     if save_img or view_img:  # Add bbox to image
                         # bounding box에 label / confidence score 붙이는 로직. default: classify 결과를 넣어준다.
+                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1)  # normalized xywh
+                        changed_ratio = (xywh2xyxy(xywh.view(1, 4)) * gn).view(-1)
+                        # print((xywh2xyxy(torch.tensor(xywh).view(1, 4)) / gn).view(-1))
+
                         label = '%s %.2f' % (names[int(cls)], conf)
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
+                        # xyxy = (xywh2xyxy(torch.tensor(xywh).view(1,4))/ gn).view(-1).tolist() ## 비율 변경한 내용을 그림에도 반영
+                        plot_one_box(changed_ratio, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
             # Print time (inference + NMS)
             print('%sDone. (%.3fs)' % (s, t2 - t1))
